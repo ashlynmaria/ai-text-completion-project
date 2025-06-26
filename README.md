@@ -33,7 +33,6 @@ This project is a **capstone application** that showcases **Generative AI for mo
 ├── text_completion_app.py   # Main Python app (this file)
 ├── README.md                # Project documentation (this file)
 ├── requirements.txt         # Dependencies
-├── assets/                  # Optional: screenshots or experiment images
 ```
 
 ---
