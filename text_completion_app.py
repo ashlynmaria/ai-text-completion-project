@@ -286,110 +286,111 @@ def get_conversation_stats():
     return app.get_conversation_summary()
 
 def run_chat_experiments():
-    """Run experiments with different chat scenarios"""
+    """Run experiments with different chat scenarios (debug version)"""
     if not app.is_api_configured:
+        print("❌ Please configure your Cohere API key first!")
         return "❌ Please configure your Cohere API key first!", None
-    
-    # Test scenarios for chat
+
+    # Simplified for faster debugging (can expand later)
     test_scenarios = [
-        "Hello! How are you today?",
-        "Can you explain quantum computing in simple terms?",
-        "Write a short creative story about a time-traveling cat.",
-        "What are the pros and cons of renewable energy?",
-        "Help me brainstorm ideas for a mobile app."
+        "Explain photosynthesis to a 10-year-old.",
+        "Continue this story: The stars suddenly disappeared..."
     ]
-    
-    # Parameter combinations
-    temperature_values = [0.3, 0.7, 1.0]
-    max_token_values = [100, 200, 300]
-    
+    temperature_values = [0.7]  # Keep one value for now
+    max_token_values = [100, 200]
+
     experiment_results = []
-    
+
+    print("🚀 Starting chat experiments...\n")
     for scenario in test_scenarios:
         for temp in temperature_values:
             for max_tokens in max_token_values:
-                # Start fresh for each experiment
+                print(f"→ Testing prompt: '{scenario[:30]}...', Temp={temp}, Tokens={max_tokens}")
                 app.chat_history = []
-                
-                result = app.generate_chat_response(
-                    message=scenario,
-                    temperature=temp,
-                    max_tokens=max_tokens
-                )
-                
-                if result['success']:
-                    experiment_results.append({
-                        'scenario': scenario[:30] + "...",
-                        'temperature': temp,
-                        'max_tokens': max_tokens,
-                        'response_length': len(result['response']),
-                        'response_time': result['response_time'],
-                        'word_count': len(result['response'].split())
-                    })
-                
-                time.sleep(1)  # Rate limiting for free tier
-    
+
+                try:
+                    result = app.generate_chat_response(
+                        message=scenario,
+                        temperature=temp,
+                        max_tokens=max_tokens
+                    )
+
+                    if result['success']:
+                        experiment_results.append({
+                            'scenario': scenario[:30] + "...",
+                            'temperature': temp,
+                            'max_tokens': max_tokens,
+                            'response_length': len(result['response']),
+                            'response_time': result['response_time'],
+                            'word_count': len(result['response'].split())
+                        })
+                        print("✅ Success\n")
+                    else:
+                        print(f"❌ Failed: {result['error']}\n")
+
+                except Exception as e:
+                    print(f"🔥 Error: {str(e)}\n")
+
+                time.sleep(1)
+
     if not experiment_results:
+        print("❌ No successful experiments completed.")
         return "❌ No successful experiments completed.", None
-    
+
     df = pd.DataFrame(experiment_results)
-    
-    # Create comprehensive visualization
+    print("📊 Data collected:\n", df)
+
+    # Plots
+    df['words_per_second'] = df['word_count'] / df['response_time']
     fig = make_subplots(
         rows=2, cols=2,
-        subplot_titles=('Response Length vs Temperature', 'Response Time by Parameters', 
-                       'Word Count Distribution', 'Parameter Efficiency'),
-        specs=[[{"secondary_y": False}, {"secondary_y": False}],
-               [{"secondary_y": False}, {"secondary_y": False}]]
+        subplot_titles=('Response Length vs Temperature', 'Response Time', 
+                        'Word Count Distribution', 'Words per Second'),
+        specs=[[{}, {}], [{}, {}]]
     )
-    
-    # Plot 1: Response length vs temperature
+
+    # Plot 1
     for temp in df['temperature'].unique():
         temp_data = df[df['temperature'] == temp]
         fig.add_trace(
             go.Scatter(x=temp_data['max_tokens'], y=temp_data['response_length'],
-                      mode='markers+lines', name=f'T={temp}',
-                      marker=dict(size=8)),
+                       mode='markers+lines', name=f'Temp={temp}'),
             row=1, col=1
         )
-    
-    # Plot 2: Response time heatmap
+
+    # Plot 2
     pivot_time = df.groupby(['temperature', 'max_tokens'])['response_time'].mean().reset_index()
     fig.add_trace(
-        go.Scatter(x=pivot_time['temperature'], y=pivot_time['response_time'],
-                  mode='markers', name='Response Time',
-                  marker=dict(size=pivot_time['max_tokens']/10, color='orange')),
+        go.Scatter(x=pivot_time['max_tokens'], y=pivot_time['response_time'],
+                   mode='markers', name='Response Time'),
         row=1, col=2
     )
-    
-    # Plot 3: Word count histogram
+
+    # Plot 3
     fig.add_trace(
-        go.Histogram(x=df['word_count'], name='Word Count',
-                    marker=dict(color='green', opacity=0.7)),
+        go.Histogram(x=df['word_count'], name='Word Count'),
         row=2, col=1
     )
-    
-    # Plot 4: Efficiency scatter (words per second)
-    df['words_per_second'] = df['word_count'] / df['response_time']
+
+    # Plot 4
     fig.add_trace(
         go.Scatter(x=df['temperature'], y=df['words_per_second'],
-                  mode='markers', name='Efficiency',
-                  marker=dict(size=10, color='purple')),
+                   mode='markers', name='Efficiency'),
         row=2, col=2
     )
-    
+
     fig.update_layout(height=800, title_text="🧪 Chat AI Experiment Results", showlegend=True)
-    
-    # Update axis labels
     fig.update_xaxes(title_text="Max Tokens", row=1, col=1)
     fig.update_yaxes(title_text="Response Length", row=1, col=1)
-    fig.update_xaxes(title_text="Temperature", row=1, col=2)
+    fig.update_xaxes(title_text="Max Tokens", row=1, col=2)
     fig.update_yaxes(title_text="Response Time (s)", row=1, col=2)
     fig.update_xaxes(title_text="Word Count", row=2, col=1)
     fig.update_yaxes(title_text="Frequency", row=2, col=1)
     fig.update_xaxes(title_text="Temperature", row=2, col=2)
     fig.update_yaxes(title_text="Words/Second", row=2, col=2)
-    
+
+    # fig.write_image("chat_experiment_results.png")
+    print("📈 Experiment results visualized and saved as 'chat_experiment_results.png'")
     summary = f"""
 ✅ **Chat Experiments Complete!**
 
@@ -405,60 +406,182 @@ def run_chat_experiments():
 - Word count scales well with max_tokens setting
 - Sweet spot appears to be around T=0.7 for balanced responses
     """
-    
+    print(summary)
     return summary, fig
 
 # =============================================================================
-# MODERN GRADIO CHAT INTERFACE
+# MODERN GRADIO CHAT INTERFACE WITH LIGHT/DARK MODE SUPPORT
 # =============================================================================
 
-# Modern CSS styling
+# Updated CSS styling with proper light/dark mode support
 modern_css = """
+/* Remove forced dark theme styling and let Gradio handle light/dark modes */
 .gradio-container {
-    font-family: 'Inter', 'Segoe UI', sans-serif;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
     min-height: 100vh;
 }
 
+/* Dark mode specific styles */
+.dark .main-header {
+    background: rgba(40, 44, 52, 0.85);
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    color: #f4f4f4;
+    padding: 2rem;
+    border-radius: 20px;
+    margin-bottom: 2rem;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
+}
+
+/* Light mode specific styles */
 .main-header {
-    text-align: center;
-    background: rgba(255, 255, 255, 0.1);
-    backdrop-filter: blur(10px);
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    color: white;
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    color: #2c3e50;
     padding: 2rem;
     border-radius: 20px;
     margin-bottom: 2rem;
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
 }
 
+.dark .main-header {
+    background: rgba(40, 44, 52, 0.85);
+    color: #f4f4f4;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
+}
+
+/* Chat container styles */
 .chat-container {
-    background: rgba(255, 255, 255, 0.95);
     border-radius: 15px;
     padding: 1rem;
     box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
 }
 
+.dark .chat-container {
+    background: rgba(34, 36, 40, 0.98);
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.18);
+}
+
+/* Section headers */
 .section-header {
-    background: linear-gradient(45deg, #ff6b6b, #4ecdc4);
-    color: white;
+    background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+    color: #fff !important;
     padding: 1rem;
     border-radius: 12px;
     margin: 1rem 0;
     text-align: center;
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.12);
+    font-weight: 600;
+    letter-spacing: 0.5px;
 }
 
+/* Stats box - adapts to theme */
 .stats-box {
-    background: linear-gradient(45deg, #a8edea, #fed6e3);
     padding: 1rem;
     border-radius: 10px;
     margin: 0.5rem 0;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.10);
+    background: var(--background-fill-primary);
+    color: var(--body-text-color);
+}
+
+/* Input fields - let Gradio handle theming */
+input, textarea, select {
+    border-radius: 8px !important;
+    padding: 0.75rem !important;
+    font-size: 1rem !important;
+    transition: border 0.2s;
+}
+
+input:focus, textarea:focus, select:focus {
+    border: 1.5px solid #764ba2 !important;
+    outline: none !important;
+}
+
+/* Buttons */
+button, .gr-button {
+    background: linear-gradient(90deg, #667eea 0%, #764ba2 100%) !important;
+    color: #fff !important;
+    border: none !important;
+    border-radius: 8px !important;
+    padding: 0.75rem 1.5rem !important;
+    font-size: 1.1rem !important;
+    font-weight: 600 !important;
+    cursor: pointer !important;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.10);
+    transition: background 0.2s, transform 0.1s;
+}
+
+button:hover, .gr-button:hover {
+    background: linear-gradient(90deg, #764ba2 0%, #667eea 100%) !important;
+    transform: translateY(-2px) scale(1.03);
+}
+
+/* Chat message styling */
+.gr-chatbot-message.user {
+    border-radius: 12px 12px 4px 12px !important;
+    margin-bottom: 0.5rem !important;
+}
+
+.gr-chatbot-message.bot {
+    border-radius: 12px 12px 12px 4px !important;
+    margin-bottom: 0.5rem !important;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+    width: 8px;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #764ba2;
+    border-radius: 8px;
+}
+
+.dark ::-webkit-scrollbar {
+    background: #232526;
+}
+
+/* Responsive design */
+@media (max-width: 600px) {
+    .main-header, .chat-container, .section-header {
+        padding: 1rem;
+        font-size: 1rem;
+    }
+    
+    button, .gr-button {
+        font-size: 1rem !important;
+        padding: 0.5rem 1rem !important;
+    }
+}
+
+/* Special styling for info boxes */
+.info-box {
+    margin-top: 20px; 
+    padding: 15px; 
+    background: linear-gradient(45deg, #667eea, #764ba2); 
+    color: white !important; 
+    border-radius: 10px;
+}
+
+.info-box h4 {
+    color: white !important;
+    margin-bottom: 10px;
+}
+
+.info-box ul {
+    color: white !important;
+}
+
+.info-box li {
+    color: white !important;
 }
 """
 
-# Create the modern Gradio interface
-with gr.Blocks(css=modern_css, title="Modern AI Chat App", theme=gr.themes.Soft()) as demo:
+# Create the modern Gradio interface with proper theme support
+with gr.Blocks(css=modern_css, title="Modern AI Chat App") as demo:
     
     # Modern Header
     gr.HTML("""
@@ -551,7 +674,7 @@ with gr.Blocks(css=modern_css, title="Modern AI Chat App", theme=gr.themes.Soft(
                 )
                 
                 gr.HTML("""
-                <div style="margin-top: 20px; padding: 15px; background: linear-gradient(45deg, #667eea, #764ba2); color: white; border-radius: 10px;">
+                <div class="info-box">
                     <h4>💡 Chat Tips:</h4>
                     <ul>
                         <li>Ask follow-up questions</li>
@@ -630,7 +753,7 @@ with gr.Blocks(css=modern_css, title="Modern AI Chat App", theme=gr.themes.Soft(
         ### 💡 **Technical Highlights:**
         - **Conversation Context**: Maintains chat history for coherent responses
         - **Free Tier Optimized**: Designed for Cohere's generous free allowance
-        - **Modern UI**: Glassmorphism design with responsive layout
+        - **Modern UI**: Responsive design with light/dark mode support
         - **Real-time Analytics**: Live conversation statistics
         - **Batch Testing**: Automated experiments with multiple scenarios
         
